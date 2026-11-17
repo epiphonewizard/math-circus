@@ -5,6 +5,9 @@ Jax and Caine. Made for home use on a tablet.
 
 ## Play it
 
+**Live:** https://epiphonewizard.github.io/math-circus/ (open in Safari on the tablet, then
+Share → Add to Home Screen). Pushing to `main` updates it within a minute or two.
+
 **On this Mac:** run `./serve.sh`, then open http://localhost:8000
 
 **On the tablet (same Wi-Fi):** run `./serve.sh` on the Mac and open the `http://192.168.x.x:8000`

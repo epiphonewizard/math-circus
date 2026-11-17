@@ -15,7 +15,17 @@ const Save = {
       outfit: 'pomni',
       boss: { stage: 0, order: null, done: false, legend: false },
       // recallMode: how Round 2 is answered ('voice' | 'keypad'); bossMode: Grand Finale ('choice' | 'voice' | 'keypad')
-      settings: { voice: true, sound: true, legend: false, unlockAll: false, recallMode: null, bossMode: 'choice' },
+      settings: {
+        voice: true, sound: true, legend: false, unlockAll: false, recallMode: null, bossMode: 'choice',
+        friendlyJax: true,   // Jax teases gently instead of mocking
+        calmMode: false,     // no screen flicker, fewer floating shapes
+        readAloud: false,    // speak each problem as it appears
+        startTime: 8,        // seconds for the first question of an act
+        minTime: 0,          // shortest the timer gets (0 = automatic: 4.5s early acts → 3.5s later)
+        dailyGoal: 2,        // rounds to win per day for a bonus (0 = off)
+        breakMinutes: 15,    // stretch-break reminder (0 = off)
+      },
+      daily: null,           // { date, wins, rewarded }
     };
   },
 

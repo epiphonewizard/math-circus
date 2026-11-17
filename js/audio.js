@@ -50,13 +50,15 @@ const Sound = {
   go() { this.tone(880, 0.3, { type: 'square', vol: 0.07 }); },
   fanfare() { [523, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.25, { type: 'triangle', vol: 0.14, delay: i * 0.12 })); },
 
-  say(text, { rate = 0.95, pitch = 1.1 } = {}) {
-    if (!Save.data.settings.voice || !window.speechSynthesis) return;
+  // onend fires when speaking finishes (or immediately if speech is off/unavailable).
+  say(text, { rate = 0.95, pitch = 1.1, onend = null, force = false } = {}) {
+    if ((!Save.data.settings.voice && !force) || !window.speechSynthesis) { if (onend) onend(); return; }
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.rate = rate; u.pitch = pitch;
+      if (onend) { u.onend = onend; u.onerror = onend; }
       speechSynthesis.speak(u);
-    } catch (e) { /* ignore */ }
+    } catch (e) { if (onend) onend(); }
   },
 };

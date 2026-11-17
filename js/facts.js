@@ -174,6 +174,25 @@ class QuestionSession {
   }
 
   get progress() { return (this.total - this.pending.size) / this.total; }
+
+  // Checkpoints: copy / restore the whole schedule.
+  snapshot() {
+    const copy = list => list.map(f => ({ ...f }));
+    return {
+      queue: copy(this.queue), pending: [...this.pending], replays: copy(this.replays),
+      endReplays: copy(this.endReplays), q: this.q, lastKey: this.lastKey,
+    };
+  }
+
+  restore(s) {
+    const copy = list => list.map(f => ({ ...f }));
+    this.queue = copy(s.queue);
+    this.pending = new Set(s.pending);
+    this.replays = copy(s.replays);
+    this.endReplays = copy(s.endReplays);
+    this.q = s.q;
+    this.lastKey = s.lastKey;
+  }
 }
 
 function buildLevelSession(levelIdx) {

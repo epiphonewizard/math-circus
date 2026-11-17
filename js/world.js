@@ -225,7 +225,7 @@ const World = {
       pole.add(new THREE.Mesh(this.ballGeo, pick(this.palMats)).translateY(6));
       this.addMover(pole, 1);
     });
-    if (Math.random() < 0.8) {
+    if (!Save.data.settings.calmMode && Math.random() < 0.8) {   // calm mode: no floating shapes
       const sh = new THREE.Mesh(pick(this.shapeGeos), pick(this.palMats));
       const side = Math.random() < 0.5 ? -1 : 1;
       sh.position.set(side * (11 + Math.random() * 26), -12 + Math.random() * 26, z);

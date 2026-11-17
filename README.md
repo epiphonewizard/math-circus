@@ -47,6 +47,21 @@ To play without the Mac running, upload this folder to any free static host
 - **Grand Finale:** all 91 facts in 4 stages with checkpoints, 3 seconds per answer
   (2 seconds with Legend mode).
 
+## Focus-friendly features (helpful for ADHD)
+
+- **Halfway checkpoint** in every act: running out of hearts after it offers *Continue from
+  checkpoint* with full hearts (earlier misses still count toward stars).
+- **Friendly Jax** (on by default): teasing but supportive lines instead of mocking ones.
+- **Impulse brake** (Round 1): two very fast wrong taps in a row → "Whoa, read it first!" and
+  the answer buttons wake up after a short pause on the next 3 questions.
+- **Adjustable timer**: starting time and shortest time are set in Grown-ups.
+- **Calm mode**: no flickering screen edges, no floating background shapes.
+- **Daily goal** (default 2 rounds/day, +20 tickets) shown as dots on the title screen, and a
+  **stretch-break reminder** after 15 minutes of play.
+- **Surprise prize boxes**: ~1 in 8 correct answers gives 2–6 bonus tickets.
+- **Read aloud**: speaks each problem (+1s on the timer). In Say it mode the microphone waits
+  until the game finishes speaking, so it never hears the question as her answer.
+
 ## Grown-ups
 
 Press and hold **Grown-ups** on the title screen. It shows a 13×13 heat map

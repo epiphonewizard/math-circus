@@ -62,7 +62,19 @@ const UI = {
 
   hud(on) { $('#hud').classList.toggle('hidden', !on); },
 
-  refreshTickets() { $$('.tix').forEach(e => { e.textContent = Save.data.tickets; }); },
+  refreshTickets() {
+    $$('.tix').forEach(e => { e.textContent = Save.data.tickets; });
+    // Daily goal dots on the title screen, e.g. 🎯 Today ●○
+    const goal = Save.data.settings.dailyGoal;
+    const el = $('#daily-pill');
+    if (!el) return;
+    el.classList.toggle('hidden', !goal);
+    if (goal) {
+      const d = Game.daily();
+      const won = Math.min(d.wins, goal);
+      el.textContent = `🎯 Today ${'●'.repeat(won)}${'○'.repeat(goal - won)}${d.rewarded ? ' ✓' : ''}`;
+    }
+  },
 
   holdButton(el, fn) {
     let timer = null;
@@ -222,7 +234,7 @@ const UI = {
     this.refreshTickets();
   },
 
-  showQuestion(q, practice) {
+  showQuestion(q, practice, waitMs = 0) {
     $('#problem').classList.remove('hidden');
     $('#problem').className = 'problem';
     $('#problem-text').textContent = `${q.a} × ${q.b} = ?`;
@@ -236,8 +248,9 @@ const UI = {
     if (q.mode === 'choice') {
       $$('.ans').forEach((b, i) => {
         b.textContent = q.options[i];
-        b.className = 'ans';
+        b.className = 'ans' + (waitMs ? ' wait' : '');   // impulse brake: buttons wake up after a moment
       });
+      if (waitMs) setTimeout(() => $$('.ans').forEach(b => b.classList.remove('wait')), waitMs);
     } else if (q.mode === 'voice') this.mic('listen');
   },
 
@@ -294,7 +307,7 @@ const UI = {
     const gl = $('#glitch');
     if (frac === null) { gl.classList.remove('on'); return; }
     $('#timer-fill').style.width = `${frac * 100}%`;
-    gl.classList.toggle('on', frac < 0.3);
+    gl.classList.toggle('on', frac < 0.3 && !Save.data.settings.calmMode);   // calm mode: no flicker
   },
 
   countdown(text) {
@@ -379,14 +392,26 @@ const UI = {
       `<p>🎟 +${r.tickets} tickets (includes +${bonus} star bonus)</p>` +
       (round1 ? '<div class="badge big">🎤 Now prove it from memory — no choices in Round 2!</div>' : '') +
       (stars < 3 ? '<p class="hint">Play again with no misses for 3 stars!</p>' : '') +
-      (unlockMsg ? `<div class="badge big">🐰 ${unlockMsg}</div>` : ''),
+      (unlockMsg ? `<div class="badge big">🐰 ${unlockMsg}</div>` : '') +
+      this.extras(r),
       btns);
+  },
+
+  // Daily-goal progress and the stretch-break nudge, shown on result screens.
+  extras(r) {
+    let html = r.dailyMsg ? `<div class="badge goal">${r.dailyMsg}</div>` : '';
+    const brk = Game.breakDue();
+    if (brk) {
+      html += `<div class="badge break">${brk}</div>`;
+      setTimeout(() => UI.say('Caine', 'Intermission! Time to stretch those legs!', 'caine'), 1200);
+    }
+    return html;
   },
 
   showPracticeDone(r) {
     const n = LEVEL_ORDER[r.levelIdx];
     this.result(`Practice done!`, null,
-      `<p>You practised every ×${n} fact. Ready for the real show with the timer?</p>` + this.statsLine(r),
+      `<p>You practised every ×${n} fact. Ready for the real show with the timer?</p>` + this.statsLine(r) + this.extras(r),
       [['PLAY! ▶', 'big', () => Game.startLevel(r.levelIdx, false, r.round)], ['Practice again', '', () => Game.startLevel(r.levelIdx, true, r.round)], ['Map', 'ghost', () => Game.quit()]]);
   },
 
@@ -394,9 +419,16 @@ const UI = {
     const n = LEVEL_ORDER[r.levelIdx];
     const s = r.session;
     UI.say('Caine', pick(LINES.caine.lose), 'caine');
+    const btns = [];
+    if (r.checkpoint) btns.push(['Continue from checkpoint ▶', 'big', () => Game.resumeCheckpoint()]);
+    btns.push([r.checkpoint ? 'Start over' : 'Try again ▶', r.checkpoint ? '' : 'big', () => Game.startLevel(r.levelIdx, false, r.round)]);
+    btns.push(['Practice first', '', () => Game.startLevel(r.levelIdx, true, r.round)]);
+    btns.push(['Map', 'ghost', () => Game.quit()]);
     this.result('Tumbled into the void!', null,
-      `<p>You got <b>${s.total - s.pending.size} of ${s.total}</b> of the ×${n} facts. Every try makes your brain stronger!</p>` + this.statsLine(r),
-      [['Try again ▶', 'big', () => Game.startLevel(r.levelIdx, false, r.round)], ['Practice first', '', () => Game.startLevel(r.levelIdx, true, r.round)], ['Map', 'ghost', () => Game.quit()]]);
+      `<p>You got <b>${s.total - s.pending.size} of ${s.total}</b> of the ×${n} facts. Every try makes your brain stronger!</p>` +
+      (r.checkpoint ? '<div class="badge goal">✅ You passed the halfway checkpoint — keep going from there with full hearts!</div>' : '') +
+      this.statsLine(r) + this.extras(r),
+      btns);
   },
 
   showBossStageFail(r) {
@@ -492,15 +524,42 @@ const UI = {
     const set = D.settings;
     const box = $('#parent-settings');
     box.innerHTML = '';
-    [['voice', 'Read missed facts out loud'], ['sound', 'Sound effects'],
-      ['legend', 'Legend mode: Grand Finale needs answers in 2 seconds (default 3)'],
-      ['unlockAll', 'Unlock all acts']].forEach(([k, label]) => {
+    const heading = (t) => box.insertAdjacentHTML('beforeend', `<h4>${t}</h4>`);
+    const toggles = (list) => list.forEach(([k, label]) => {
       const row = document.createElement('label');
       row.className = 'toggle';
       row.innerHTML = `<input type="checkbox" ${set[k] ? 'checked' : ''}> <span>${label}</span>`;
       row.querySelector('input').addEventListener('change', (e) => { set[k] = e.target.checked; Save.save(); });
       box.appendChild(row);
     });
+    const select = (k, label, opts) => {
+      const row = document.createElement('label');
+      row.className = 'toggle';
+      row.innerHTML = `<span>${label}</span> <select>${opts.map(([v, t]) =>
+        `<option value="${v}" ${Number(set[k]) === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+      row.querySelector('select').addEventListener('change', (e) => { set[k] = Number(e.target.value); Save.save(); });
+      box.appendChild(row);
+    };
+
+    heading('Focus & feelings');
+    toggles([
+      ['friendlyJax', 'Friendly Jax (teases gently and cheers her on, instead of mocking)'],
+      ['calmMode', 'Calm mode (no flickering screen edges, fewer floating shapes)'],
+      ['readAloud', 'Read each problem out loud (+1 second on the timer)'],
+    ]);
+    heading('Timer');
+    select('startTime', 'Starting time per question', [[6, '6 seconds'], [8, '8 seconds'], [10, '10 seconds'], [12, '12 seconds'], [15, '15 seconds']]);
+    select('minTime', 'Shortest it can get', [[0, 'Automatic (4.5s → 3.5s)'], [3, '3 seconds'], [4, '4 seconds'], [5, '5 seconds'], [6, '6 seconds'], [8, '8 seconds']]);
+    box.insertAdjacentHTML('beforeend', '<p class="hint">The timer starts at the starting time, gets 0.35s shorter after each right answer, and backs off by 1s after a miss. Say it mode times her to when she starts talking.</p>');
+    heading('Daily routine');
+    select('dailyGoal', 'Daily goal (+20 🎟 bonus)', [[0, 'Off'], [1, '1 round a day'], [2, '2 rounds a day'], [3, '3 rounds a day'], [4, '4 rounds a day']]);
+    select('breakMinutes', 'Stretch-break reminder', [[0, 'Off'], [10, 'Every 10 minutes'], [15, 'Every 15 minutes'], [20, 'Every 20 minutes'], [30, 'Every 30 minutes']]);
+    heading('Other');
+    toggles([
+      ['voice', 'Read missed facts out loud'], ['sound', 'Sound effects'],
+      ['legend', 'Legend mode: Grand Finale needs answers in 2 seconds (default 3)'],
+      ['unlockAll', 'Unlock all acts'],
+    ]);
     const reset = document.createElement('button');
     reset.className = 'btn small red';
     reset.textContent = 'Reset all progress';

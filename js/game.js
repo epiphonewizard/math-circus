@@ -14,6 +14,13 @@ const LINES = {
     streak5: ['Lucky guess. Probably.', 'Hm. Not bad... for a jester.'],
     streak10: ["Okay... that's kind of impressive. Whatever.", "Ugh. Fine. You're good at this."],
   },
+  // Default: still sarcastic, but on her side (Grown-ups → "Friendly Jax").
+  jaxFriendly: {
+    fail: ['Okay, okay, that one was sneaky. Next!', 'Eh, even I miss sometimes. Rarely. But sometimes.', 'Shake it off, jester!', "That one's coming back. You'll get it."],
+    timeout: ["Too slow! ...You'll get the next one.", 'Tick tock! You got this.'],
+    streak5: ['Huh. Not bad, jester.', "Okay, you're actually good at this."],
+    streak10: ["TEN?! Fine. I'm impressed.", 'Who taught you math? ...Was it me? It was me.'],
+  },
   pomni: {
     fail: ['Oh no oh no oh no!', 'Are you okay?! ...Next one!', "Deep breaths. We've got this!"],
     timeout: ['Hurry, Jax!', 'Pick one, pick one!'],
@@ -172,8 +179,9 @@ const Game = {
       r.limit = r.floor = Save.data.settings.legend ? 2 : 3;
     } else {
       r.session = buildLevelSession(idx);
-      r.limit = START_LIMIT;
-      r.floor = levelTimerFloor(idx);
+      const s = Save.data.settings;
+      r.start = r.limit = s.startTime || START_LIMIT;                       // Grown-ups → timer settings
+      r.floor = Math.min(r.start, s.minTime || levelTimerFloor(idx));
     }
     UI.show(null);
     UI.hud(true);
@@ -221,7 +229,8 @@ const Game = {
       q.typed = '';
     }
     q.kind = Math.random() < 0.6 ? 'cliff' : 'curtain';
-    q.limit = (r.practice ? 4 : r.limit) + MODE_BONUS[q.mode];
+    const readAloud = Save.data.settings.readAloud;
+    q.limit = (r.practice ? 4 : r.limit) + MODE_BONUS[q.mode] + (readAloud ? 1 : 0);
     q.locked = null;
     q.hearingAt = null;
     q.retried = false;
@@ -235,9 +244,24 @@ const Game = {
       q.gate.group.add(sk.root);
     }
     q.t0 = performance.now();
+    // Impulse brake: answers are ignored for the first moment of the next few questions.
+    q.lockUntil = 0;
+    if (r.brakeQs > 0 && q.mode === 'choice') { r.brakeQs--; q.lockUntil = q.t0 + 700; }
     this.state = 'ask';
-    UI.showQuestion(q, r.practice);
-    if (q.mode === 'voice') this.listen();
+    UI.showQuestion(q, r.practice, q.lockUntil ? 700 : 0);
+    if (readAloud) {
+      // In Say it mode, only start the mic after the game has finished speaking,
+      // so it can't hear "seven times eight" and take 8 as her answer.
+      let started = false;
+      const go = () => {
+        if (started || r.q !== q || this.state !== 'ask' || q.locked !== null) return;
+        started = true;
+        q.t0 = performance.now();      // her time starts once the problem has been read
+        this.listen();
+      };
+      Sound.say(`${q.a} times ${q.b}`, { rate: 1.05, force: true, onend: q.mode === 'voice' ? go : null });
+      if (q.mode === 'voice') setTimeout(go, 2500);  // in case the speech engine never reports "done"
+    } else if (q.mode === 'voice') this.listen();
   },
 
   // ---------- SAY IT ----------
@@ -315,6 +339,7 @@ const Game = {
   choose(lane) {
     const r = this.run;
     if (this.state !== 'ask' || !r || !r.q || r.q.locked !== null || r.q.mode !== 'choice') return;
+    if (performance.now() < r.q.lockUntil) return;   // impulse brake: read it first
     const q = r.q;
     q.locked = lane;
     q.rt = performance.now() - q.t0;
@@ -363,9 +388,47 @@ const Game = {
     Facts.record(q.a, q.b, ok, timeout ? q.limit * 1000 : q.rt, q.mode);
     r.session.report(q, ok);
     UI.reveal(q, ok);
+
+    // Impulse brake: two super-fast wrong taps in a row → "read it first".
+    if (q.mode === 'choice' && !ok && !timeout && q.rt < 600) r.fastWrong = (r.fastWrong || 0) + 1;
+    else r.fastWrong = 0;
+    if (r.fastWrong >= 2) {
+      r.fastWrong = 0;
+      r.brakeQs = 3;
+      setTimeout(() => UI.say('Pomni', 'Whoa, read it first! Take a breath.', 'pomni'), 900);
+    }
+
+    // Halfway checkpoint (normal acts only; the Finale has its own stages).
+    if (ok && !r.boss && !r.practice && !r.checkpoint && r.session.progress >= 0.5) {
+      r.checkpoint = { session: r.session.snapshot(), misses: r.misses, correct: r.correct, rts: r.rts.slice(), limit: r.limit };
+      setTimeout(() => UI.toast('✅ Checkpoint! Halfway there!', 2000), 300);
+    }
+
     if (ok) this.onCorrect(); else this.onWrong(timeout);
     Save.save();
     UI.updateHud(r);
+  },
+
+  // Out of hearts after the checkpoint: continue from the halfway point with full hearts.
+  resumeCheckpoint() {
+    const r = this.run;
+    if (!r || !r.checkpoint) return;
+    const c = r.checkpoint;
+    r.session.restore(c.session);
+    r.correct = c.correct;         // misses are kept, so continuing from a checkpoint can't earn 3 stars
+    r.rts = c.rts.slice();
+    r.limit = c.limit;
+    r.hearts = 3;
+    r.streak = 0;
+    r.usedCheckpoint = true;
+    World.clearGates();
+    this.playerLane = 1;
+    this.resetPose();
+    UI.show(null);
+    UI.updateHud(r);
+    this.state = 'countdown';
+    r.cd = 3;
+    r.cdShown = null;
   },
 
   onCorrect() {
@@ -377,6 +440,12 @@ const Game = {
     if (!r.practice && !r.boss) r.limit = Math.max(r.floor, r.limit - 0.35);
     let tix = 1;
     if (r.streak % 5 === 0) tix += 3;
+    // Surprise prize box: unpredictable rewards keep it exciting.
+    else if (Math.random() < 0.12) {
+      const prize = 2 + Math.floor(Math.random() * 5);
+      tix += prize;
+      setTimeout(() => { UI.toast(`🎁 Surprise box! +${prize} 🎟`, 1600); Sound.fanfare(); }, 350);
+    }
     r.tickets += tix;
     Save.data.tickets += tix;
     Sound.correct();
@@ -404,7 +473,7 @@ const Game = {
     r.streak = 0;
     r.misses++;
     if (!r.practice) r.hearts--;
-    if (!r.practice && !r.boss) r.limit = Math.min(START_LIMIT, r.limit + 1);
+    if (!r.practice && !r.boss) r.limit = Math.min(r.start, r.limit + 1);
     Sound.wrong();
     r.cardShown = false;
     if (q.kind === 'cliff') {
@@ -426,7 +495,8 @@ const Game = {
 
   sidekickLine(type) {
     const kind = this.sidekick.kind;
-    UI.say(kind === 'jax' ? 'Jax' : 'Pomni', pick(LINES[kind][type]), kind);
+    const pool = kind === 'jax' && Save.data.settings.friendlyJax ? LINES.jaxFriendly : LINES[kind];
+    UI.say(kind === 'jax' ? 'Jax' : 'Pomni', pick(pool[type]), kind);
   },
 
   showCorrection() {
@@ -494,6 +564,7 @@ const Game = {
     const bonus = stars * 5;
     Save.data.tickets += bonus;
     r.tickets += bonus;
+    r.dailyMsg = this.countDailyWin(r);
     let unlockMsg = null;
     if (L.done && LEVEL_ORDER[r.levelIdx] === 5 && !Save.data.owned.includes('jax')) {
       Save.data.owned.push('jax');
@@ -502,6 +573,39 @@ const Game = {
     Save.save();
     Sound.fanfare();
     UI.showLevelWin(r, stars, bonus, unlockMsg);
+  },
+
+  // ---------- DAILY GOAL & BREAKS ----------
+  today() {
+    const d = new Date();
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  },
+
+  daily() {
+    const D = Save.data;
+    if (!D.daily || D.daily.date !== this.today()) D.daily = { date: this.today(), wins: 0, rewarded: false };
+    return D.daily;
+  },
+
+  countDailyWin(r) {
+    const d = this.daily();
+    d.wins++;
+    const goal = Save.data.settings.dailyGoal;
+    if (goal && !d.rewarded && d.wins >= goal) {
+      d.rewarded = true;
+      Save.data.tickets += 20;
+      r.tickets += 20;
+      return `🎯 Daily goal done — ${goal} round${goal > 1 ? 's' : ''} won today! +20 🎟`;
+    }
+    return goal && !d.rewarded ? `🎯 Today: ${d.wins} of ${goal} rounds won` : null;
+  },
+
+  // Returns a stretch-break nudge once she has played for a while (then starts counting again).
+  breakDue() {
+    const mins = Save.data.settings.breakMinutes;
+    if (!mins || this.playSec < mins * 60) return null;
+    this.playSec = 0;
+    return `🧘 You've been playing for ${mins} minutes. Great time for a stretch, a drink of water, or a wiggle break!`;
   },
 
   outOfHearts() {
@@ -540,6 +644,7 @@ const Game = {
   update(dt) {
     this.t += dt;
     if (this.state === 'paused') return;
+    if (this.mode === 'run' && !['intro', 'done'].includes(this.state)) this.playSec = (this.playSec || 0) + dt;
     if (this.mode === 'run') this.updateRun(dt);
     else World.speed += (6 - World.speed) * Math.min(1, dt * 2);
     World.update(dt);

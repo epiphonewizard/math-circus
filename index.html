@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Math Circus">
+<meta name="theme-color" content="#140b44">
+<title>Digital Math Circus</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="game"></div>
+<div id="glitch"></div>
+
+<!-- In-run HUD -->
+<div id="hud" class="hidden">
+  <div id="hud-top">
+    <div id="hearts"></div>
+    <div id="level-label" class="pill"></div>
+    <div id="hud-right">
+      <span id="streak"></span>
+      <span class="pill">🎟 <b class="tix">0</b></span>
+      <button id="pause-btn" aria-label="Pause">❚❚</button>
+    </div>
+  </div>
+  <div id="progress"><div id="progress-fill"></div></div>
+  <div id="problem" class="problem hidden">
+    <div id="problem-text"></div>
+    <div id="problem-note"></div>
+    <div id="timer"><div id="timer-fill"></div></div>
+  </div>
+  <div id="mic" class="mic hidden"><span class="mic-dot">🎤</span><span id="mic-text">Say the answer!</span></div>
+  <div id="keypad" class="hidden">
+    <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+    <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+    <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+    <button data-k="del" class="k-del">⌫</button><button data-k="0">0</button><button data-k="ok" class="k-ok">✓</button>
+  </div>
+  <div id="answers" class="hidden">
+    <button class="ans" data-lane="0"></button>
+    <button class="ans" data-lane="1"></button>
+    <button class="ans" data-lane="2"></button>
+  </div>
+</div>
+
+<div id="bubble" class="bubble hidden"><div class="who"></div><div class="say"></div></div>
+<div id="countdown" class="hidden"></div>
+<div id="toast" class="hidden"></div>
+
+<!-- Title -->
+<div id="scr-title" class="screen title-screen">
+  <div class="title-top">
+    <div class="title-small">THE AMAZING DIGITAL</div>
+    <div class="title-big">MATH CIRCUS</div>
+    <div class="title-sub">Times tables 0 – 12 · a fan-made game</div>
+  </div>
+  <div class="title-bottom">
+    <button class="btn big" id="btn-play">▶ PLAY</button>
+    <div class="row">
+      <button class="btn blue" id="btn-wardrobe">🎭 Wardrobe</button>
+      <span class="pill">🎟 <b class="tix">0</b></span>
+    </div>
+    <button class="btn small ghost hold" id="btn-parents">Grown-ups (press &amp; hold)</button>
+  </div>
+</div>
+
+<!-- Level map -->
+<div id="scr-map" class="screen hidden dim">
+  <div class="panel wide">
+    <div class="panel-head">
+      <button class="btn small ghost" data-back="title">◀</button>
+      <h2>Choose your act</h2>
+      <span class="pill dark">🎟 <b class="tix">0</b></span>
+    </div>
+    <div id="level-grid"></div>
+  </div>
+</div>
+
+<!-- Caine intro -->
+<div id="scr-intro" class="screen hidden bottom">
+  <div class="panel">
+    <div class="who caine">CAINE</div>
+    <div id="intro-text" class="big-text"></div>
+    <div id="intro-tip" class="tip"></div>
+    <div class="row wrap" id="round-row"></div>
+    <div class="row wrap" id="mode-row"></div>
+    <div class="row wrap" id="intro-buttons"></div>
+  </div>
+</div>
+
+<!-- Correction card after a miss -->
+<div id="scr-correct" class="screen hidden dim">
+  <div class="panel correction">
+    <div class="corr-label">Remember this one:</div>
+    <div id="corr-fact"></div>
+    <div id="corr-turn"></div>
+    <div id="corr-tip" class="tip"></div>
+    <div id="corr-note" class="hint"></div>
+    <button class="btn big" id="corr-go">Keep running ▶</button>
+  </div>
+</div>
+
+<!-- Results -->
+<div id="scr-result" class="screen hidden dim">
+  <div class="panel">
+    <h2 id="res-title"></h2>
+    <div id="res-stars"></div>
+    <div id="res-body"></div>
+    <div class="row wrap" id="res-buttons"></div>
+  </div>
+</div>
+
+<!-- Pause -->
+<div id="scr-pause" class="screen hidden dim">
+  <div class="panel">
+    <h2>Paused</h2>
+    <div class="row wrap">
+      <button class="btn big" id="btn-resume">▶ Resume</button>
+      <button class="btn ghost" id="btn-quit">Quit to map</button>
+    </div>
+  </div>
+</div>
+
+<!-- Wardrobe -->
+<div id="scr-wardrobe" class="screen hidden bottom">
+  <div class="panel wide">
+    <div class="panel-head">
+      <button class="btn small ghost" data-back="title">◀</button>
+      <h2>Wardrobe</h2>
+      <span class="pill dark">🎟 <b class="tix">0</b></span>
+    </div>
+    <div id="wardrobe-grid"></div>
+  </div>
+</div>
+
+<!-- Grown-ups -->
+<div id="scr-parents" class="screen hidden dim">
+  <div class="panel wide scroll">
+    <div class="panel-head">
+      <button class="btn small ghost" data-back="title">◀</button>
+      <h2>Grown-ups</h2>
+      <span></span>
+    </div>
+    <div id="parent-summary"></div>
+    <div class="legend">
+      <span class="chip st-fluent">fluent</span><span class="chip st-learning">learning</span>
+      <span class="chip st-struggling">needs work</span><span class="chip st-unseen">not seen</span>
+    </div>
+    <div id="heatmap"></div>
+    <div id="hm-detail" class="hint"></div>
+    <div id="parent-lists"></div>
+    <h3>Settings</h3>
+    <div id="parent-settings"></div>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script>if (!window.THREE) document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"><\/script>');</script>
+<script src="js/storage.js"></script>
+<script src="js/facts.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/voice.js"></script>
+<script src="js/characters.js"></script>
+<script src="js/world.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

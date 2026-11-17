@@ -1,0 +1,10 @@
+{
+  "name": "Digital Math Circus",
+  "short_name": "Math Circus",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#140b44",
+  "theme_color": "#140b44",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }]
+}

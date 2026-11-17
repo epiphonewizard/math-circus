@@ -14,6 +14,29 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&display=swap">
 <link rel="stylesheet" href="css/style.css">
+<script>
+// Block zooming. iPad Safari ignores user-scalable=no, so stop the gestures themselves.
+(function () {
+  var stop = function (e) { e.preventDefault(); };
+  var opts = { passive: false };
+  // Pinch (Safari gesture events + any two-finger touch move)
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) { document.addEventListener(t, stop, opts); });
+  document.addEventListener('touchmove', function (e) { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, opts);
+  // Double-tap zoom: swallow a second tap that lands within 350ms
+  var lastTouch = 0;
+  document.addEventListener('touchend', function (e) {
+    var now = Date.now();
+    if (now - lastTouch < 350 && e.cancelable) e.preventDefault();
+    lastTouch = now;
+  }, opts);
+  document.addEventListener('dblclick', stop, opts);
+  // Computers: ctrl/cmd + scroll or trackpad pinch, and ctrl/cmd + plus / minus / 0
+  document.addEventListener('wheel', function (e) { if (e.ctrlKey || e.metaKey) e.preventDefault(); }, opts);
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && ['+', '=', '-', '_', '0'].indexOf(e.key) !== -1) e.preventDefault();
+  });
+})();
+</script>
 </head>
 <body>
 <div id="game"></div>

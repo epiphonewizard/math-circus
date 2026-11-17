@@ -11,13 +11,20 @@ const OUTFITS = [
 ];
 
 const UI = {
-  screens: ['title', 'map', 'intro', 'correct', 'result', 'pause', 'wardrobe', 'parents'],
+  screens: ['title', 'map', 'intro', 'correct', 'result', 'pause', 'wardrobe', 'parents', 'pin'],
 
   init() {
     const tap = (el, fn) => el.addEventListener('click', () => { Sound.unlock(); Sound.click(); fn(); });
     tap($('#btn-play'), () => this.showMap());
     tap($('#btn-wardrobe'), () => this.showWardrobe());
-    this.holdButton($('#btn-parents'), () => this.showParents());
+    this.holdButton($('#btn-parents'), () => this.requirePin('Grown-up code', () => this.showParents(), 'title'));
+    $$('#pin-pad button').forEach(b => b.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      Sound.unlock();
+      this.pinKey(b.dataset.k);
+    }));
+    tap($('#pin-cancel'), () => this.show(this._pin ? this._pin.back : 'title'));
+    tap($('#pin-forgot'), () => this.pinForgot());
     $$('[data-back]').forEach(b => tap(b, () => {
       if (b.dataset.back === 'map') this.showMap(); else this.show(b.dataset.back);
     }));
@@ -37,6 +44,14 @@ const UI = {
     tap($('#btn-quit'), () => Game.quit());
 
     document.addEventListener('keydown', (e) => {
+      if (!$('#scr-pin').classList.contains('hidden')) {
+        if (/^[0-9]$/.test(e.key)) this.pinKey(e.key);
+        else if (e.key === 'Backspace') this.pinKey('del');
+        else if (e.key === 'Enter') this.pinKey('ok');
+        else if (e.key === 'Escape') this.show(this._pin.back);
+        e.preventDefault();
+        return;
+      }
       const lanes = { '1': 0, '2': 1, '3': 2, ArrowLeft: 0, ArrowUp: 1, ArrowDown: 1, ArrowRight: 2 };
       const q = Game.run && Game.run.q;
       if (Game.state === 'ask' && q && q.mode === 'keypad') {
@@ -56,7 +71,7 @@ const UI = {
 
   show(name) {
     for (const s of this.screens) $('#scr-' + s).classList.toggle('hidden', s !== name);
-    if (['title', 'map', 'intro', 'wardrobe', 'parents'].includes(name)) $('#bubble').classList.add('hidden');
+    if (['title', 'map', 'intro', 'wardrobe', 'parents', 'pin'].includes(name)) $('#bubble').classList.add('hidden');
     this.refreshTickets();
   },
 
@@ -74,6 +89,79 @@ const UI = {
       const won = Math.min(d.wins, goal);
       el.textContent = `🎯 Today ${'●'.repeat(won)}${'○'.repeat(goal - won)}${d.rewarded ? ' ✓' : ''}`;
     }
+  },
+
+  // ---------- GROWN-UP CODE ----------
+  // Ask for 4 digits. onDone(code) returns true to close, false to clear and try again.
+  askPin(title, onDone, back, verifying = false) {
+    this._pin = { entry: '', onDone, back, title, forgot: null };
+    $('#pin-title').textContent = title;
+    $('#pin-forgot').classList.toggle('hidden', !verifying);
+    $('#pin-msg').textContent = '';
+    $('#toast').classList.add('hidden');
+    this.renderPin();
+    this.show('pin');
+  },
+
+  // Runs onOk straight away if no code is set; otherwise asks for it first.
+  requirePin(title, onOk, back) {
+    if (!Save.data.pin) { onOk(); return; }
+    this.askPin(title, (code) => {
+      if (code === Save.data.pin) { onOk(); return true; }
+      $('#pin-msg').textContent = 'That’s not the code — try again';
+      return false;
+    }, back, true);
+  },
+
+  renderPin() {
+    const p = this._pin;
+    $('#pin-dots').textContent = p.forgot
+      ? (p.entry || '?')
+      : '●'.repeat(p.entry.length) + '○'.repeat(4 - p.entry.length);
+  },
+
+  pinKey(k) {
+    const p = this._pin;
+    if (!p) return;
+    if (k === 'del') p.entry = p.entry.slice(0, -1);
+    else if (k === 'ok') { if (p.forgot) this.pinSubmit(); return; }
+    else if (p.entry.length < (p.forgot ? 5 : 4)) p.entry += k;
+    Sound.click();
+    this.renderPin();
+    if (!p.forgot && p.entry.length === 4) setTimeout(() => this.pinSubmit(), 120);
+  },
+
+  pinSubmit() {
+    const p = this._pin;
+    if (p.forgot) {
+      // Forgot the code: a 2-digit × 2-digit problem a grown-up can do but she can't (yet!).
+      if (Number(p.entry) === p.forgot.answer) {
+        Save.data.pin = null;
+        Save.save();
+        this.toast('Code removed — you can set a new one in Grown-ups', 2600);
+        this.showParents();
+      } else {
+        $('#pin-msg').textContent = 'Not quite — try again';
+        p.entry = '';
+        this.renderPin();
+      }
+      return;
+    }
+    if (p.onDone(p.entry) === false) {
+      p.entry = '';
+      const dots = $('#pin-dots');
+      dots.classList.remove('shake'); void dots.offsetWidth; dots.classList.add('shake');
+      this.renderPin();
+    }
+  },
+
+  pinForgot() {
+    const a = 21 + Math.floor(Math.random() * 29), b = 21 + Math.floor(Math.random() * 29);
+    this._pin.forgot = { answer: a * b };
+    this._pin.entry = '';
+    $('#pin-title').textContent = `Grown-up check: ${a} × ${b} = ?  (then ✓)`;
+    $('#pin-forgot').classList.add('hidden');
+    this.renderPin();
   },
 
   holdButton(el, fn) {
@@ -99,14 +187,17 @@ const UI = {
       const open = Game.isUnlocked(i);
       const pickDone = !!(L && L.pick.done);
       const b = document.createElement('button');
+      const skippedOnly = L && L.skipped && !L.pick.stars && !L.recall.stars;
       b.className = 'lvl' + (open ? '' : ' locked') + (L && L.done ? ' done' : pickDone ? ' half' : '');
-      b.innerHTML = `<div class="lvl-act">Act ${i + 1}</div><div class="lvl-num">×${n}</div>` + (open
-        ? `<div class="lvl-round">👆 <span class="lvl-stars">${this.stars(L ? L.pick.stars : 0)}</span></div>` +
-          `<div class="lvl-round">${pickDone || Save.data.settings.unlockAll ? '🎤' : '🔒'} <span class="lvl-stars">${this.stars(L ? L.recall.stars : 0)}</span></div>`
-        : '<div class="lvl-stars">🔒</div>');
+      b.innerHTML = `<div class="lvl-act">Act ${i + 1}</div><div class="lvl-num">×${n}</div>` + (!open
+        ? '<div class="lvl-stars">🔒</div>'
+        : skippedOnly
+          ? '<div class="lvl-round skipped">⏭ Skipped</div><div class="lvl-round">play for ★</div>'
+          : `<div class="lvl-round">👆 <span class="lvl-stars">${this.stars(L ? L.pick.stars : 0)}</span></div>` +
+            `<div class="lvl-round">${pickDone || Save.data.settings.unlockAll ? '🎤' : '🔒'} <span class="lvl-stars">${this.stars(L ? L.recall.stars : 0)}</span></div>`);
       b.addEventListener('click', () => {
         Sound.unlock();
-        if (!open) { this.toast('Finish the act before this one first!'); return; }
+        if (!open) { this.skipPrompt(i, `×${n}`); return; }
         Sound.click();
         Game.startLevel(i);
       });
@@ -121,12 +212,27 @@ const UI = {
       : '🔒 Finish all 13 acts to unlock'}</div>`;
     boss.addEventListener('click', () => {
       Sound.unlock();
-      if (!bossOpen) { this.toast('Finish all 13 acts to unlock the Grand Finale!'); return; }
+      if (!bossOpen) { this.skipPrompt(BOSS_LEVEL, 'the Grand Finale'); return; }
       Sound.click();
       Game.startLevel(BOSS_LEVEL);
     });
     grid.appendChild(boss);
     this.show('map');
+  },
+
+  // Tapping a locked act: a grown-up can enter the code to skip ahead to it.
+  skipPrompt(idx, name) {
+    if (!Save.data.pin) {
+      this.toast(idx === BOSS_LEVEL ? 'Finish all 13 acts to unlock the Grand Finale!' : 'Finish the act before this one first!', 2200);
+      return;
+    }
+    this.askPin(`Grown-up code to skip ahead to ${name}`, (code) => {
+      if (code !== Save.data.pin) { $('#pin-msg').textContent = 'That’s not the code — try again'; return false; }
+      Game.skipTo(idx);
+      this.showMap();
+      this.toast(`⏭ Skipped ahead! ${name} is unlocked.`, 2200);
+      return true;
+    }, 'map', true);
   },
 
   // ---------- INTRO (Caine) ----------
@@ -486,6 +592,8 @@ const UI = {
   // ---------- GROWN-UPS ----------
   showParents() {
     const D = Save.data;
+    const panel = $('#scr-parents .panel');
+    const keepScroll = !$('#scr-parents').classList.contains('hidden') ? panel.scrollTop : 0;
     const counts = { fluent: 0, learning: 0, struggling: 0, unseen: 0 };
     Facts.allKeys().forEach(k => counts[Facts.status(k)]++);
     $('#parent-summary').innerHTML =
@@ -554,6 +662,49 @@ const UI = {
     heading('Daily routine');
     select('dailyGoal', 'Daily goal (+20 🎟 bonus)', [[0, 'Off'], [1, '1 round a day'], [2, '2 rounds a day'], [3, '3 rounds a day'], [4, '4 rounds a day']]);
     select('breakMinutes', 'Stretch-break reminder', [[0, 'Off'], [10, 'Every 10 minutes'], [15, 'Every 15 minutes'], [20, 'Every 20 minutes'], [30, 'Every 30 minutes']]);
+    heading('Grown-up code');
+    const pinRow = document.createElement('div');
+    pinRow.className = 'row wrap left';
+    box.appendChild(pinRow);
+    box.insertAdjacentHTML('beforeend', `<p class="hint">${D.pin
+      ? 'A code is set. It’s needed to open Grown-ups and to skip ahead from the map (tap a locked act).'
+      : 'No code yet. Set one so she can’t open Grown-ups or skip acts herself. Then you can tap any locked act on the map to skip ahead to it.'}</p>`);
+    const setPin = () => this.askPin('Choose a 4-digit grown-up code', (code) => {
+      this.askPin('Type the same code again', (again) => {
+        if (again !== code) { this.toast('Codes didn’t match — try again'); setTimeout(setPin, 50); return true; }
+        Save.data.pin = code;
+        Save.save();
+        this.toast('🔒 Grown-up code saved', 2000);
+        this.showParents();
+        return true;
+      }, 'parents');
+      return true;
+    }, 'parents');
+    this.button(pinRow, D.pin ? 'Change code' : 'Set a code', 'small', setPin);
+    if (D.pin) this.button(pinRow, 'Remove code', 'small ghost', () => { Save.data.pin = null; Save.save(); this.showParents(); });
+
+    heading('Skip acts she already knows');
+    box.insertAdjacentHTML('beforeend', '<p class="hint">Checked acts count as complete, so the next ones unlock. She can still play them for stars, and their facts still come up as review in later acts and the Grand Finale.</p>');
+    const skipGrid = document.createElement('div');
+    skipGrid.className = 'skip-grid';
+    LEVEL_ORDER.forEach((n, i) => {
+      const L = D.levels[i];
+      const row = document.createElement('label');
+      row.className = 'skip-item';
+      row.innerHTML = `<input type="checkbox" ${L && L.done ? 'checked' : ''}> <b>×${n}</b> <small>Act ${i + 1}${L && L.skipped ? ' · skipped' : ''}</small>`;
+      row.querySelector('input').addEventListener('change', (e) => {
+        if (!e.target.checked && L && L.done && !L.skipped &&
+          !confirm(`She finished ×${n} herself. Unchecking erases her stars for this act. Continue?`)) {
+          e.target.checked = true;
+          return;
+        }
+        Game.setSkipped(i, e.target.checked);
+        this.showParents();
+      });
+      skipGrid.appendChild(row);
+    });
+    box.appendChild(skipGrid);
+
     heading('Other');
     toggles([
       ['voice', 'Read missed facts out loud'], ['sound', 'Sound effects'],
@@ -573,5 +724,6 @@ const UI = {
     box.appendChild(reset);
     $('#hm-detail').textContent = 'Tap a square to see details.';
     this.show('parents');
+    panel.scrollTop = keepScroll;   // re-rendering after a toggle shouldn't jump back to the top
   },
 };

@@ -112,6 +112,27 @@ const Game = {
     return Save.data.levels[i];
   },
 
+  // ---------- SKIPPING (grown-up only) ----------
+  // A skipped act counts as complete (both rounds) with no stars; she can still play it for stars.
+  setSkipped(i, on) {
+    if (on) {
+      const L = this.level(i);
+      if (L.done) return;
+      L.pick.done = true;
+      L.recall.done = true;
+      L.done = true;
+      L.skipped = true;
+    } else {
+      delete Save.data.levels[i];   // back to not started
+    }
+    Save.save();
+  },
+
+  // Mark every act before `idx` as known (idx = BOSS_LEVEL unlocks the Grand Finale).
+  skipTo(idx) {
+    for (let k = 0; k < Math.min(idx, LEVEL_ORDER.length); k++) this.setSkipped(k, true);
+  },
+
   recallUnlocked(i) { return Save.data.settings.unlockAll || this.level(i).pick.done; },
 
   // Round 1 until it's won, then Round 2.

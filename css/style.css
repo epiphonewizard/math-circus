@@ -306,3 +306,22 @@ button { font-family: var(--font); cursor: pointer; touch-action: manipulation; 
   font-family: var(--font); font-size: 17px; font-weight: 700; color: var(--ink);
   border: 3px solid var(--ink); border-radius: 10px; padding: 2px 6px; background: #fff;
 }
+
+/* ---------- Grown-up code & skipping ---------- */
+.pin-panel { width: min(92vw, 420px); }
+.pin-panel h2 { font-size: 24px; }
+#pin-dots { font-size: 40px; letter-spacing: 10px; font-weight: 800; margin: 6px 0 12px; min-height: 52px; }
+#pin-dots.shake { animation: shake .4s; }
+#pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+#pin-pad button {
+  height: 64px; font-size: 32px; font-weight: 800; background: var(--cream); color: var(--ink);
+  border: 5px solid var(--ink); border-radius: 16px; box-shadow: 0 5px 0 var(--ink);
+}
+#pin-pad button:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--ink); }
+.row.left { justify-content: flex-start; }
+.skip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; }
+.skip-item { display: flex; align-items: center; gap: 8px; font-size: 18px; }
+.skip-item input { width: 24px; height: 24px; accent-color: var(--purple); }
+.skip-item small { color: #6a5a99; }
+.lvl-round.skipped { font-weight: 800; font-size: 16px; }
+#pin-msg { color: var(--bad); font-weight: 800; font-size: 17px; min-height: 22px; margin: -6px 0 8px; }

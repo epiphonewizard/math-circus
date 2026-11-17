@@ -70,6 +70,17 @@ voice, sounds, Legend mode, unlock all acts, reset progress.
 
 "Fluent" = answered correctly in under 3 seconds twice in a row.
 
+### Grown-up code & skipping acts
+
+- **Set a 4-digit code** in Grown-ups → *Grown-up code*. Once set, it's needed to open
+  Grown-ups and to skip acts.
+- **Skip from the map:** tap any locked act, enter the code, and every act before it is marked
+  complete.
+- **Skip specific acts:** Grown-ups → *Skip acts she already knows* has a check box per act.
+- Skipped acts show "⏭ Skipped" and can still be played for stars; their facts still appear as
+  review in later acts and the Grand Finale.
+- **Forgot the code?** Tap *Forgot code?* and solve a two-digit × two-digit problem to remove it.
+
 ## Files
 
 - `index.html`, `css/style.css`: layout and screens
